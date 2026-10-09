@@ -29,7 +29,7 @@ python -m http.server 8000
 | `models/` | 変換済みの3Dデータ |
 | `tools/convert_makehuman.py` | MakeHuman のデータから `models/` を作るスクリプト |
 | `vendor/` | Three.js（MIT） |
-| `docs/要件定義書.md` | 要件定義（作成時点のもの。実装で変更・追加した点は反映していません） |
+| `docs/要件定義書.md` | 要件定義（現在の実装に合わせた内容） |
 
 ## 3Dデータについて
 
