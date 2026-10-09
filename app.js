@@ -837,7 +837,11 @@ function toast(message) {
 
 document.querySelectorAll("[data-view]").forEach((b) => b.addEventListener("click", () => setView(b.dataset.view)));
 
-document.getElementById("resetView").addEventListener("click", resetCamera);
+document.getElementById("resetView").addEventListener("click", () => {
+  layoutFigures(); // 動かした人体の立ち位置を、初期の位置に戻す
+  resetCamera(); // 拡大・移動・回転を、標準の見え方に戻す
+  scheduleHistoryCommit(); // 立ち位置が変わった場合は、戻る・進むに記録する
+});
 
 document.getElementById("share").addEventListener("click", async () => {
   const url = `${location.origin}${location.pathname}#${hashOf(state)}`;
@@ -924,7 +928,7 @@ function select(id) {
   selected = id;
   document.querySelectorAll("[data-move]").forEach((b) => b.classList.toggle("on", b.dataset.move === id));
   for (const other of IDS) figures[other]?.setHighlight(other === id);
-  toast(id ? `${displayName(id)}を選択中。ドラッグで左右に移動できます（解除は、「${id}を動かす」ボタンをもう一度押すか、Esc キー）。` : "");
+  toast(id ? `${displayName(id)}を選択中。ドラッグで左右・前後に移動できます（斜めには動きません。解除は、「${id}を動かす」ボタンをもう一度押すか、Esc キー）。` : "");
   requestRender();
 }
 
@@ -948,6 +952,8 @@ renderer.domElement.addEventListener("dblclick", (event) => {
   select(id === selected ? null : id); // 人体をダブルクリックすると選択、選択中の人体なら解除
 });
 
+const AXIS_LOCK_PX = 8; // 動かし始めて、これだけ動いたら、左右か前後かを決める
+
 // OrbitControls より先に処理し、選択中の人体の上で押したときだけ移動を始める
 view.addEventListener(
   "pointerdown",
@@ -955,7 +961,7 @@ view.addEventListener(
     if (!selected || event.button !== 0 || event.shiftKey) return;
     // マウスは、選択中の人体の上でドラッグしたときだけ。タッチは、1本指なら、画面のどこでも（2本指は表示の移動）
     if (event.pointerType === "touch" ? touchPointers.size > 1 : pickFigure(event) !== selected) return;
-    drag = { id: selected, x: event.clientX, pointerId: event.pointerId };
+    drag = { id: selected, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, axis: null, pointerId: event.pointerId };
     controls.enabled = false;
     view.setPointerCapture(event.pointerId);
   },
@@ -964,15 +970,39 @@ view.addEventListener(
 view.addEventListener("pointermove", (event) => {
   if (drag && touchPointers.size > 1) endDrag(); // 2本指になったら、人体の移動はやめて、表示の移動にする
   if (!drag) return;
-  const worldPerPixel = (camera.right - camera.left) / camera.zoom / view.clientWidth;
-  const right = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0);
-  right.y = 0; // 高さ（Y座標）は変えない
-  right.normalize();
-  const group = figures[drag.id].group;
-  group.position.addScaledVector(right, (event.clientX - drag.x) * worldPerPixel);
-  group.position.x = THREE.MathUtils.clamp(group.position.x, -2, 2);
-  group.position.z = THREE.MathUtils.clamp(group.position.z, -2, 2);
+  // 左右（画面の横）か、前後（画面の縦: 上へ動かすと奥、下へ動かすと手前）の、どちらか一方にだけ動かす。
+  // どちらかは、動かし始めに一度だけ決める（斜めには動かさない）。高さ（Y座標）は変えない。
+  const dx = event.clientX - drag.x;
+  const dy = event.clientY - drag.y;
   drag.x = event.clientX;
+  drag.y = event.clientY;
+  let movedPx;
+  if (!drag.axis) {
+    const totalX = event.clientX - drag.startX;
+    const totalY = event.clientY - drag.startY;
+    if (Math.max(Math.abs(totalX), Math.abs(totalY)) < AXIS_LOCK_PX) return; // 少しの動きでは、向きを決めない
+    drag.axis = Math.abs(totalX) >= Math.abs(totalY) ? "x" : "y";
+    movedPx = drag.axis === "x" ? totalX : totalY; // 向きが決まるまでに動いた分も、まとめて反映する
+  } else {
+    movedPx = drag.axis === "x" ? dx : dy;
+  }
+  const worldPerPixel = (camera.right - camera.left) / camera.zoom / view.clientWidth;
+  const direction = new THREE.Vector3();
+  if (drag.axis === "x") {
+    direction.setFromMatrixColumn(camera.matrixWorld, 0); // 画面の右
+  } else {
+    direction.subVectors(controls.target, camera.position); // カメラが見ている向き（奥）
+    direction.y = 0;
+    if (direction.lengthSq() < 1e-6) direction.setFromMatrixColumn(camera.matrixWorld, 1); // 真上から見ているときは、画面の上
+    movedPx = -movedPx; // 画面の上へ動かすと奥、下へ動かすと手前
+  }
+  direction.y = 0;
+  direction.normalize();
+  const group = figures[drag.id].group;
+  group.position.addScaledVector(direction, movedPx * worldPerPixel);
+  const limit = 2 * stageScale;
+  group.position.x = THREE.MathUtils.clamp(group.position.x, -limit, limit);
+  group.position.z = THREE.MathUtils.clamp(group.position.z, -limit, limit);
   updateEyeLink();
 });
 const endDrag = () => {
