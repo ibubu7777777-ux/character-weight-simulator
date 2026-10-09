@@ -109,6 +109,8 @@ const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 60);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enablePan = true; // 右ドラッグ / Shift+ドラッグ / 2本指ドラッグで、表示する範囲を上下左右に動かす
 controls.screenSpacePanning = true;
+// 1本指は回転。2本指は、下の独自の処理（移動を基本に、つまんだときだけ拡大縮小）で扱う
+controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: null };
 controls.minZoom = 0.6;
 controls.maxZoom = 4;
 controls.maxPolarAngle = Math.PI / 2; // 水平より下（下からの煽り）には回らない。上へのドラッグで水平 0 度で止まる
@@ -200,6 +202,76 @@ function resetCamera() {
   controls.target.set(0, targetY(), 0);
   controls.update();
   requestRender();
+}
+
+// ---------- スマホ（タッチ）の操作 ----------
+// 2本指のドラッグは、表示位置の移動。指の間隔が大きく変わったとき（つまむ・広げる）だけ、拡大縮小も行う。
+// 移動しているつもりで、指の間隔が少し変わっただけでは、拡大縮小にならない。
+const touchPointers = new Map();
+let pinch = null;
+const movedSinceUpdate = new Set(); // 指ごとに動きの通知が別々に届くので、両方の指が動いてから判定する
+const PINCH_START_RATIO = 0.12; // 指の間隔が、この割合（対数）以上変わったら拡大縮小を始める
+const _right = new THREE.Vector3();
+const _up = new THREE.Vector3();
+
+function panByPixels(dx, dy) {
+  const perX = (camera.right - camera.left) / camera.zoom / view.clientWidth;
+  const perY = (camera.top - camera.bottom) / camera.zoom / view.clientHeight;
+  _right.setFromMatrixColumn(camera.matrixWorld, 0);
+  _up.setFromMatrixColumn(camera.matrixWorld, 1);
+  const offset = _right.multiplyScalar(-dx * perX).addScaledVector(_up, dy * perY);
+  controls.target.add(offset);
+  camera.position.add(offset);
+  clampPan();
+}
+
+function zoomBy(factor) {
+  camera.zoom = clamp(camera.zoom * factor, controls.minZoom, controls.maxZoom);
+  camera.updateProjectionMatrix();
+  requestRender();
+}
+
+const touchMetrics = () => {
+  const [a, b] = [...touchPointers.values()];
+  return { mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, dist: Math.hypot(a.x - b.x, a.y - b.y) || 1 };
+};
+
+view.addEventListener(
+  "pointerdown",
+  (event) => {
+    if (event.pointerType !== "touch") return;
+    touchPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    movedSinceUpdate.clear();
+    if (touchPointers.size === 2) pinch = { ...touchMetrics(), base: touchMetrics().dist, zooming: false };
+  },
+  true
+);
+view.addEventListener("pointermove", (event) => {
+  if (event.pointerType !== "touch" || !touchPointers.has(event.pointerId)) return;
+  touchPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+  if (touchPointers.size !== 2 || !pinch) return;
+  movedSinceUpdate.add(event.pointerId);
+  if (movedSinceUpdate.size < 2) return;
+  movedSinceUpdate.clear();
+  const now = touchMetrics();
+  panByPixels(now.mid.x - pinch.mid.x, now.mid.y - pinch.mid.y);
+  if (!pinch.zooming && Math.abs(Math.log(now.dist / pinch.base)) > PINCH_START_RATIO) pinch.zooming = true;
+  if (pinch.zooming) zoomBy(now.dist / pinch.dist);
+  pinch.mid = now.mid;
+  pinch.dist = now.dist;
+  requestRender();
+});
+const endTouch = (event) => {
+  if (event.pointerType !== "touch") return;
+  touchPointers.delete(event.pointerId);
+  movedSinceUpdate.clear();
+  if (touchPointers.size < 2) pinch = null;
+};
+view.addEventListener("pointerup", endTouch);
+view.addEventListener("pointercancel", endTouch);
+// iOS のブラウザが、3D の上のつまむ操作で、ページ全体を拡大してしまうのを防ぐ
+for (const name of ["gesturestart", "gesturechange", "gestureend"]) {
+  view.addEventListener(name, (event) => event.preventDefault());
 }
 
 let dirty = true;
@@ -450,6 +522,7 @@ const overlay = document.createElement("div");
 overlay.className = "overlay";
 view.appendChild(overlay);
 let overlayItems = [];
+const NARROW_VIEW_PX = 600; // これより狭い画面（スマホ）では、目線の文字を人体の顔に重ならない右上に並べる
 
 function computeOverlayItems() {
   camera.updateMatrixWorld();
@@ -473,6 +546,10 @@ function computeOverlayItems() {
 
   const eyes = IDS.map((id, i) => ({ side: "right", kind: "eye", y: screenY(eyeWorld[i]), text: eyeMarkOf[id]?.text }))
     .filter((item) => item.text);
+  if (view.clientWidth < NARROW_VIEW_PX) {
+    eyes.forEach((item, i) => (item.y = 16 + i * 28)); // A が上、B が下
+    return items.concat(eyes);
+  }
   eyes.sort((a, b) => a.y - b.y);
   const GAP = 26;
   if (eyes.length === 2 && eyes[1].y - eyes[0].y < GAP) {
@@ -824,10 +901,17 @@ function pickFigure(event) {
 
 function select(id) {
   selected = id;
+  document.querySelectorAll("[data-move]").forEach((b) => b.classList.toggle("on", b.dataset.move === id));
   for (const other of IDS) figures[other]?.setHighlight(other === id);
-  toast(id ? `${displayName(id)}を選択中。ドラッグで左右に移動できます（もう一度ダブルクリックで解除）。` : "");
+  toast(id ? `${displayName(id)}を選択中。ドラッグで左右に移動できます（もう一度ダブルクリックか、「${id}を動かす」ボタンで解除）。` : "");
   requestRender();
 }
+
+document.querySelectorAll("[data-move]").forEach((button) =>
+  button.addEventListener("click", () => select(selected === button.dataset.move ? null : button.dataset.move))
+);
+document.getElementById("zoomIn").addEventListener("click", () => zoomBy(1.3));
+document.getElementById("zoomOut").addEventListener("click", () => zoomBy(1 / 1.3));
 
 renderer.domElement.addEventListener("dblclick", (event) => {
   const id = pickFigure(event);
@@ -838,7 +922,9 @@ renderer.domElement.addEventListener("dblclick", (event) => {
 view.addEventListener(
   "pointerdown",
   (event) => {
-    if (!selected || event.button !== 0 || event.shiftKey || pickFigure(event) !== selected) return;
+    if (!selected || event.button !== 0 || event.shiftKey) return;
+    // マウスは、選択中の人体の上でドラッグしたときだけ。タッチは、1本指なら、画面のどこでも（2本指は表示の移動）
+    if (event.pointerType === "touch" ? touchPointers.size > 1 : pickFigure(event) !== selected) return;
     drag = { id: selected, x: event.clientX, pointerId: event.pointerId };
     controls.enabled = false;
     view.setPointerCapture(event.pointerId);
@@ -846,6 +932,7 @@ view.addEventListener(
   true
 );
 view.addEventListener("pointermove", (event) => {
+  if (drag && touchPointers.size > 1) endDrag(); // 2本指になったら、人体の移動はやめて、表示の移動にする
   if (!drag) return;
   const worldPerPixel = (camera.right - camera.left) / camera.zoom / view.clientWidth;
   const right = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0);

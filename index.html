@@ -30,11 +30,20 @@
         <button type="button" data-view="front" class="on">正面</button>
         <button type="button" data-view="side">横</button>
       </div>
+      <div class="seg" role="group" aria-label="拡大縮小">
+        <button type="button" id="zoomOut" aria-label="縮小" title="縮小">－</button>
+        <button type="button" id="zoomIn" aria-label="拡大" title="拡大">＋</button>
+      </div>
       <button type="button" id="resetView" title="拡大・移動・回転をやり直して、標準の見え方に戻す">表示を戻す</button>
+      <div class="seg" role="group" aria-label="人体を左右に動かす">
+        <button type="button" data-move="A" title="選ぶと、ドラッグで左右に動かせます">Aを動かす</button>
+        <button type="button" data-move="B" title="選ぶと、ドラッグで左右に動かせます">Bを動かす</button>
+      </div>
       <button type="button" id="savePng">画像を保存</button>
       <button type="button" id="share">共有URLをコピー</button>
     </div>
-    <p class="hint">ドラッグ: 回転 ／ 右ドラッグ・Shift+ドラッグ（スマホは2本指）: 表示位置の移動 ／ ホイール: 拡大縮小 ／ 人体をダブルクリック: 選択して左右に移動</p>
+    <p class="hint hint-pc">ドラッグ: 回転 ／ 右ドラッグ・Shift+ドラッグ: 表示位置の移動 ／ ホイール: 拡大縮小 ／ 人体をダブルクリック: 選択して左右に移動</p>
+    <p class="hint hint-touch">1本指でなぞる: 回転 ／ 2本指でなぞる: 表示位置の移動 ／ 2本指でつまむ・広げる、または「－」「＋」: 拡大縮小 ／「Aを動かす」を押して1本指でなぞる: 人体を左右に移動</p>
     <p class="toast" id="toast" role="status"></p>
     <div class="compare" id="compare"></div>
   </section>

@@ -117,6 +117,11 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 
 .view {
   position: relative;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: contain;
   height: min(68vh, 640px);
   min-height: 360px;
   border-radius: 10px;
@@ -128,6 +133,13 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 .loading { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; color: var(--muted); }
 .toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; align-items: center; }
 .hint { margin: 8px 0 0; font-size: 0.8rem; color: var(--muted); }
+.hint-touch { display: none; }
+@media (hover: none) and (pointer: coarse) {
+  .hint-pc { display: none; }
+  .hint-touch { display: block; }
+}
+.stage .seg button[data-move="A"].on { background: var(--a); border-color: var(--a); color: #fff; }
+.stage .seg button[data-move="B"].on { background: var(--b); border-color: var(--b); color: #fff; }
 .overlay { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
 .ov { position: absolute; transform: translateY(-50%); font-size: 12px; font-weight: 700; line-height: 1; white-space: nowrap; }
 .ov.left { left: 6px; color: var(--muted); }
