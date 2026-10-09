@@ -132,6 +132,13 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 .view canvas { display: block; width: 100%; height: 100%; }
 .loading { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; color: var(--muted); }
 .toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; align-items: center; }
+.eye-strip { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0 0 8px; font-size: 0.85rem; font-weight: 700; color: #2f6fdb; }
+.eye-strip[hidden] { display: none; }
+.eye-chip i { display: inline-block; width: 10px; height: 10px; margin-right: 6px; border-radius: 50%; background: var(--c); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .eye-strip { color: #7fb0ff; }
+}
+:root[data-theme="dark"] .eye-strip { color: #7fb0ff; }
 .hint { margin: 8px 0 0; font-size: 0.8rem; color: var(--muted); }
 .hint-touch { display: none; }
 @media (hover: none) and (pointer: coarse) {

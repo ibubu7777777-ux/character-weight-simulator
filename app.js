@@ -269,6 +269,14 @@ const endTouch = (event) => {
 };
 view.addEventListener("pointerup", endTouch);
 view.addEventListener("pointercancel", endTouch);
+const resetTouches = (event) => {
+  if (event.touches.length > 0) return;
+  touchPointers.clear();
+  movedSinceUpdate.clear();
+  pinch = null;
+};
+view.addEventListener("touchend", resetTouches, { passive: true });
+view.addEventListener("touchcancel", resetTouches, { passive: true });
 // iOS のブラウザが、3D の上のつまむ操作で、ページ全体を拡大してしまうのを防ぐ
 for (const name of ["gesturestart", "gesturechange", "gestureend"]) {
   view.addEventListener(name, (event) => event.preventDefault());
@@ -522,7 +530,9 @@ const overlay = document.createElement("div");
 overlay.className = "overlay";
 view.appendChild(overlay);
 let overlayItems = [];
-const NARROW_VIEW_PX = 600; // これより狭い画面（スマホ）では、目線の文字を人体の顔に重ならない右上に並べる
+const NARROW_VIEW_PX = 600; // これより狭い画面（スマホ）では、目線の文字を、3D画面の外（すぐ上の帯）に出して、人体と重ならないようにする
+const eyeStrip = document.getElementById("eyeStrip");
+let eyeStripHtml = "";
 
 function computeOverlayItems() {
   camera.updateMatrixWorld();
@@ -546,10 +556,7 @@ function computeOverlayItems() {
 
   const eyes = IDS.map((id, i) => ({ side: "right", kind: "eye", y: screenY(eyeWorld[i]), text: eyeMarkOf[id]?.text }))
     .filter((item) => item.text);
-  if (view.clientWidth < NARROW_VIEW_PX) {
-    eyes.forEach((item, i) => (item.y = 16 + i * 28)); // A が上、B が下
-    return items.concat(eyes);
-  }
+  if (view.clientWidth < NARROW_VIEW_PX) return items; // 狭い画面では、目線の文字は3D画面の上の帯に出す（updateOverlay）
   eyes.sort((a, b) => a.y - b.y);
   const GAP = 26;
   if (eyes.length === 2 && eyes[1].y - eyes[0].y < GAP) {
@@ -561,7 +568,21 @@ function computeOverlayItems() {
   return items.concat(eyes);
 }
 
+function updateEyeStrip() {
+  const narrow = view.clientWidth < NARROW_VIEW_PX;
+  eyeStrip.hidden = !narrow;
+  if (!narrow) return;
+  const html = IDS.filter((id) => eyeMarkOf[id]?.text)
+    .map((id) => `<span class="eye-chip" style="--c: var(--${id === "A" ? "a" : "b"})"><i></i>${esc(eyeMarkOf[id].text)}</span>`)
+    .join("");
+  if (html !== eyeStripHtml) {
+    eyeStrip.innerHTML = html;
+    eyeStripHtml = html;
+  }
+}
+
 function updateOverlay() {
+  updateEyeStrip();
   overlayItems = computeOverlayItems();
   while (overlay.children.length < overlayItems.length) overlay.appendChild(document.createElement("div"));
   [...overlay.children].forEach((el, i) => {
@@ -835,7 +856,7 @@ document.getElementById("savePng").addEventListener("click", () => {
   const lines = IDS.map((id) => {
     const s = state[id];
     const r = results[id];
-    return `${displayName(id)}（${GENDER_LABEL[s.gender]}）${s.height}cm / ${fmt(r.weight)}kg / BMI ${fmt(r.bmi)} / 体脂肪率 ${fmt(r.bodyFat, 0)}%`;
+    return `${displayName(id)}（${GENDER_LABEL[s.gender]}）${s.height}cm / ${fmt(r.weight)}kg / BMI ${fmt(r.bmi)} / 体脂肪率 ${fmt(r.bodyFat, 0)}% / 目線 ${Math.round(figures[id].eyeHeight * 100)}cm`;
   });
 
   // 長い名前でも収まるように、文字の大きさを下げて合わせる（A が上段、B が下段）
@@ -903,19 +924,28 @@ function select(id) {
   selected = id;
   document.querySelectorAll("[data-move]").forEach((b) => b.classList.toggle("on", b.dataset.move === id));
   for (const other of IDS) figures[other]?.setHighlight(other === id);
-  toast(id ? `${displayName(id)}を選択中。ドラッグで左右に移動できます（もう一度ダブルクリックか、「${id}を動かす」ボタンで解除）。` : "");
+  toast(id ? `${displayName(id)}を選択中。ドラッグで左右に移動できます（解除は、「${id}を動かす」ボタンをもう一度押すか、Esc キー）。` : "");
   requestRender();
 }
 
+// スマホのブラウザは、ボタンの押下を二重に通知することがあり、選んだ直後に解除されてしまうので、続けて来たものは無視する
+let lastMoveClick = 0;
 document.querySelectorAll("[data-move]").forEach((button) =>
-  button.addEventListener("click", () => select(selected === button.dataset.move ? null : button.dataset.move))
+  button.addEventListener("click", () => {
+    const now = performance.now();
+    if (now - lastMoveClick < 500) return;
+    lastMoveClick = now;
+    select(selected === button.dataset.move ? null : button.dataset.move);
+  })
 );
-document.getElementById("zoomIn").addEventListener("click", () => zoomBy(1.3));
-document.getElementById("zoomOut").addEventListener("click", () => zoomBy(1 / 1.3));
+addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && selected) select(null); // Esc で、人体の選択を解除
+});
 
 renderer.domElement.addEventListener("dblclick", (event) => {
   const id = pickFigure(event);
-  select(id && id !== selected ? id : null);
+  if (!id) return; // 空きの場所では選択を変えない（スマホで、意図せず届いたダブルタップで解除されないように）
+  select(id === selected ? null : id); // 人体をダブルクリックすると選択、選択中の人体なら解除
 });
 
 // OrbitControls より先に処理し、選択中の人体の上で押したときだけ移動を始める
