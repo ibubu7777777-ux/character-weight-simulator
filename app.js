@@ -1,12 +1,12 @@
 import * as THREE from "three";
 import { OrbitControls } from "./vendor/OrbitControls.js";
-import { loadFigure } from "./figure.js?v=20261010-3";
-import { calculate, clamp, PRESETS, RANGES } from "./body.js?v=20261010-3";
+import { loadFigure } from "./figure.js?v=20261010-4";
+import { calculate, clamp, PRESETS, RANGES } from "./body.js?v=20261010-4";
 
 const IDS = ["A", "B"];
 const DEFAULT_NAMES = { A: "キャラクターA", B: "キャラクターB" };
 const GENDER_LABEL = { male: "男性", female: "女性" };
-const FIGURE_COLOR = { A: 0x4f8fd6, B: 0xe09a4f };
+const FIGURE_COLOR = { A: 0xe8a6b8, B: 0xe3c562 }; // A: 落ち着いた桃色、B: 落ち着いた黄色（style.css の --a / --b と同じ色）
 
 const STORAGE_KEY = "character-weight-simulator.v1";
 
@@ -290,49 +290,50 @@ controls.addEventListener("change", () => {
   clampPan();
   requestRender();
 });
-// どちらを手前に描くか: 身長が低い方を手前にする。身長が同じなら、画面上の面積が小さい（体格が小さく見える）方を手前にする。
-// 二人の体が重なっていても色が混ざらず、手前の人が全体を隠さずに見えるよう、前後の2回に分けて描く。
-const _viewMatrix = new THREE.Matrix4();
-function projectedArea(figure) {
-  camera.updateMatrixWorld();
+// どちらを手前に描くか:
+// - 二人の体が離れているときは、普通の奥行き（座標でカメラに近い方が手前）で描く。
+// - 二人の3Dが重なっているとき（真上から見た体の範囲が重なっているとき）は、身長が低い方を手前にする。
+//   身長が同じなら、体重が軽い方を手前にする。重なった体の色が混ざらず、手前の人が全体を見えるよう、前後の2回に分けて描く。
+function footprintBox(figure) {
   figure.group.updateMatrixWorld(true);
-  _viewMatrix.multiplyMatrices(camera.matrixWorldInverse, figure.mesh.matrixWorld);
-  const e = _viewMatrix.elements;
-  const pos = figure.current;
-  const index = figure.mesh.geometry.index.array;
-  const n = figure.meta.nVerts;
-  const xs = new Float32Array(n);
-  const ys = new Float32Array(n);
-  for (let i = 0; i < n; i++) {
-    const x = pos[i * 3], y = pos[i * 3 + 1], z = pos[i * 3 + 2];
-    xs[i] = e[0] * x + e[4] * y + e[8] * z + e[12];
-    ys[i] = e[1] * x + e[5] * y + e[9] * z + e[13];
-  }
-  let area = 0;
-  for (let t = 0; t < index.length; t += 3) {
-    const a = index[t], b = index[t + 1], c = index[t + 2];
-    area += Math.abs((xs[b] - xs[a]) * (ys[c] - ys[a]) - (xs[c] - xs[a]) * (ys[b] - ys[a])) / 2;
-  }
-  return area;
+  const f = figure.footprint;
+  const center = new THREE.Vector3((f.minX + f.maxX) / 2, 0, (f.minZ + f.maxZ) / 2);
+  figure.group.localToWorld(center);
+  const t = figure.group.rotation.y;
+  return {
+    cx: center.x,
+    cz: center.z,
+    ex: [Math.cos(t), -Math.sin(t)], // キャラクターの横方向（真上から見たときの向き）
+    ez: [Math.sin(t), Math.cos(t)], // 正面の向き
+    hx: (f.maxX - f.minX) / 2,
+    hz: (f.maxZ - f.minZ) / 2,
+  };
 }
 
-// 二人の立ち位置は、並べた方向（正面なら正面、横なら横）から見ているときにだけ、前後を決めて描く。
-// 回転して見ているときは、普通の奥行き（カメラに近い方が手前）で描く。
-function viewingAlongLayout() {
-  const dx = camera.position.x - controls.target.x;
-  const dy = camera.position.y - controls.target.y;
-  const dz = camera.position.z - controls.target.z;
-  const axis = viewName === "side" ? Math.PI / 2 : 0;
-  let diff = Math.abs(Math.atan2(dx, dz) - axis);
-  diff = Math.min(diff, Math.PI * 2 - diff);
-  const elevation = Math.atan2(dy, Math.hypot(dx, dz));
-  return diff < (15 * Math.PI) / 180 && elevation < (30 * Math.PI) / 180;
+// 向きのついた二つの長方形（真上から見た体の範囲）が重なっているか（分離軸による判定）
+function figuresOverlap() {
+  const a = footprintBox(figures.A);
+  const b = footprintBox(figures.B);
+  const dot = (u, v) => u[0] * v[0] + u[1] * v[1];
+  const dx = b.cx - a.cx;
+  const dz = b.cz - a.cz;
+  return [a.ex, a.ez, b.ex, b.ez].every((axis) => {
+    const distance = Math.abs(dx * axis[0] + dz * axis[1]);
+    const radius =
+      a.hx * Math.abs(dot(a.ex, axis)) + a.hz * Math.abs(dot(a.ez, axis)) +
+      b.hx * Math.abs(dot(b.ex, axis)) + b.hz * Math.abs(dot(b.ez, axis));
+    return distance <= radius;
+  });
 }
 
+// 重なっているときに手前に描く方。重なっていなければ null（普通の奥行きで描く）
 function frontFigureId() {
-  if (!figures.A || !figures.B || !viewingAlongLayout()) return null;
+  if (!figures.A || !figures.B || !figuresOverlap()) return null;
   if (state.A.height !== state.B.height) return state.A.height < state.B.height ? "A" : "B";
-  return projectedArea(figures.A) <= projectedArea(figures.B) ? "A" : "B";
+  const weightA = results.A?.weight ?? 0;
+  const weightB = results.B?.weight ?? 0;
+  if (Math.abs(weightA - weightB) > 0.05) return weightA < weightB ? "A" : "B";
+  return null; // 身長も体重も同じなら、普通の奥行きで描く
 }
 
 function renderFrame() {
@@ -594,7 +595,7 @@ function updateEyeStrip() {
 const topMap = document.createElement("canvas");
 topMap.className = "topmap";
 view.appendChild(topMap);
-const MAP_COLOR = { A: "#4f8fd6", B: "#e09a4f" };
+const MAP_COLOR = { A: "#e8a6b8", B: "#e3c562" };
 
 function drawTopMap() {
   const size = view.clientWidth < NARROW_VIEW_PX ? 96 : 120;

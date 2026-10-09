@@ -5,8 +5,8 @@
   --muted: #5d6879;
   --border: #d5dbe5;
   --accent: #2f6fdb;
-  --a: #4f8fd6;
-  --b: #e09a4f;
+  --a: #e8a6b8; /* 落ち着いた桃色 */
+  --b: #e3c562; /* 落ち着いた黄色 */
   --stage: #eef1f5;
   color-scheme: light;
 }
@@ -145,8 +145,8 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
   .hint-pc { display: none; }
   .hint-touch { display: block; }
 }
-.stage .seg button[data-move="A"].on { background: var(--a); border-color: var(--a); color: #fff; }
-.stage .seg button[data-move="B"].on { background: var(--b); border-color: var(--b); color: #fff; }
+.stage .seg button[data-move="A"].on { background: var(--a); border-color: var(--a); color: #3a1522; }
+.stage .seg button[data-move="B"].on { background: var(--b); border-color: var(--b); color: #35290a; }
 .topmap { position: absolute; right: 8px; bottom: 8px; pointer-events: none; }
 .overlay { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
 .ov { position: absolute; transform: translateY(-50%); font-size: 12px; font-weight: 700; line-height: 1; white-space: nowrap; }
@@ -177,3 +177,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
   flex: 1; min-width: 0; padding: 6px 8px; font: inherit; color: var(--text);
   background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
 }
+
+/* A（桃色）・B（黄色）のパネルで選んだボタンは、白い文字だと読みにくいので、濃い色にする */
+#panelA .seg button.on { color: #3a1522; }
+#panelB .seg button.on { color: #35290a; }

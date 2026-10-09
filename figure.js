@@ -85,6 +85,7 @@ export class Figure {
     this.eyeSurfaceLocal = new THREE.Vector3(); // 目の間の、顔の表面の位置
     this.eyeHeight = 0;
     this.shoulderSlab = new Int32Array(0);
+    this.footprint = { minX: 0, maxX: 0, minZ: 0, maxZ: 0 };
     this.heightCm = 170;
     this.muscle = 0.5;
     this.weight = 0.5;
@@ -129,14 +130,23 @@ export class Figure {
     const n = this.meta.nVerts;
     let top = -Infinity;
     let bottom = Infinity;
+    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
     for (let i = 0; i < n; i++) {
+      const x = cur[i * 3];
       const y = cur[i * 3 + 1];
+      const z = cur[i * 3 + 2];
       if (y > top) top = y;
       if (y < bottom) bottom = y;
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (z < minZ) minZ = z;
+      if (z > maxZ) maxZ = z;
     }
     const scale = this.heightCm / 100 / (top - bottom); // メッシュ単位 → メートル
     this.mesh.scale.setScalar(scale);
     this.mesh.position.y = -bottom * scale;
+    // 真上から見た、体の範囲（メートル、キャラクターのグループ座標）。二人が重なっているかの判定に使う
+    this.footprint = { minX: minX * scale, maxX: maxX * scale, minZ: minZ * scale, maxZ: maxZ * scale };
     // 両目の中心。キャラクターのグループ座標（メートル）で持つ
     const { eyeL, eyeR } = this.meta.points;
     this.eyeLocal.set(
