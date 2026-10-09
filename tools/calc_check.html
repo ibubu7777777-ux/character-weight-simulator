@@ -1,0 +1,29 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>計算ロジックの確認</title>
+<!-- 開発用: 簡易サーバー経由で開くと、body.js の計算結果の例を一覧できる -->
+<pre id="o"></pre>
+<script type="module">
+import { calculate } from "../body.js";
+const rows = [
+  ["男170 標準", { gender: "male", heightCm: 170, muscle: 50, bodyFat: 18 }],
+  ["女160 標準", { gender: "female", heightCm: 160, muscle: 50, bodyFat: 27 }],
+  ["男170 体重55指定", { gender: "male", heightCm: 170, muscle: 50, bodyFat: 18, weightKg: 55 }],
+  ["男170 体重120指定", { gender: "male", heightCm: 170, muscle: 50, bodyFat: 18, weightKg: 120 }],
+  ["男190 ゴリマッチョ", { gender: "male", heightCm: 190, muscle: 95, bodyFat: 10 }],
+  ["女150 痩せ型", { gender: "female", heightCm: 150, muscle: 30, bodyFat: 20 }],
+  // 体重の指定: 体脂肪率の範囲に収まらないときは、筋肉量も合わせる
+  ["男185 筋肉70 体重60指定", { gender: "male", heightCm: 185, muscle: 70, bodyFat: 15, weightKg: 60 }],
+  ["男185 筋肉70 体重70指定", { gender: "male", heightCm: 185, muscle: 70, bodyFat: 15, weightKg: 70 }],
+  ["男185 筋肉70 体重150指定", { gender: "male", heightCm: 185, muscle: 70, bodyFat: 15, weightKg: 150 }],
+  ["男185 筋肉70 体重30指定（無理）", { gender: "male", heightCm: 185, muscle: 70, bodyFat: 15, weightKg: 30 }],
+  ["女160 筋肉50 体重40指定", { gender: "female", heightCm: 160, muscle: 50, bodyFat: 27, weightKg: 40 }],
+  ["女160 筋肉50 体重65指定", { gender: "female", heightCm: 160, muscle: 50, bodyFat: 27, weightKg: 65 }],
+];
+document.getElementById("o").textContent = rows
+  .map(([name, input]) => {
+    const r = calculate(input);
+    return `${name}: ${r.weight.toFixed(1)}kg BMI${r.bmi.toFixed(1)} 筋肉${r.muscle}% 脂肪${r.bodyFat.toFixed(1)}% ${r.notes.join("/")}`;
+  })
+  .join("\n");
+</script>

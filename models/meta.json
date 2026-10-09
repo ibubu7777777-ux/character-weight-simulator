@@ -1,0 +1,81 @@
+{
+  "nVerts": 13380,
+  "nPoints": 13414,
+  "nTris": 26756,
+  "points": {
+    "shoulderL": 13380,
+    "elbowL": 13381,
+    "wristL": 13382,
+    "eyeL": 13383,
+    "hipL": 13384,
+    "kneeL": 13385,
+    "ankleL": 13386,
+    "finger1BaseL": 13387,
+    "finger1TipL": 13388,
+    "finger2BaseL": 13389,
+    "finger2TipL": 13390,
+    "finger3BaseL": 13391,
+    "finger3TipL": 13392,
+    "finger4BaseL": 13393,
+    "finger4TipL": 13394,
+    "finger5BaseL": 13395,
+    "finger5TipL": 13396,
+    "shoulderR": 13397,
+    "elbowR": 13398,
+    "wristR": 13399,
+    "eyeR": 13400,
+    "hipR": 13401,
+    "kneeR": 13402,
+    "ankleR": 13403,
+    "finger1BaseR": 13404,
+    "finger1TipR": 13405,
+    "finger2BaseR": 13406,
+    "finger2TipR": 13407,
+    "finger3BaseR": 13408,
+    "finger3TipR": 13409,
+    "finger4BaseR": 13410,
+    "finger4TipR": 13411,
+    "finger5BaseR": 13412,
+    "finger5TipR": 13413
+  },
+  "weightArrays": [
+    "armL",
+    "foreL",
+    "legL",
+    "finger1L",
+    "finger2L",
+    "finger3L",
+    "finger4L",
+    "finger5L",
+    "armR",
+    "foreR",
+    "legR",
+    "finger1R",
+    "finger2R",
+    "finger3R",
+    "finger4R",
+    "finger5R"
+  ],
+  "ages": [
+    "young"
+  ],
+  "races": [
+    "asian"
+  ],
+  "muscles": [
+    "minmuscle",
+    "averagemuscle",
+    "maxmuscle"
+  ],
+  "weights": [
+    "minweight",
+    "averageweight",
+    "maxweight"
+  ],
+  "genders": [
+    "female",
+    "male"
+  ],
+  "license": "CC0 1.0 (MakeHuman assets, 2020-09)",
+  "bustTargets": 2
+}
