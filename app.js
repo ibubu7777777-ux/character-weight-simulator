@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "./vendor/OrbitControls.js";
-import { loadFigure } from "./figure.js?v=20261010-5";
-import { calculate, clamp, PRESETS, RANGES } from "./body.js?v=20261010-5";
+import { loadFigure } from "./figure.js?v=20261010-6";
+import { calculate, clamp, PRESETS, RANGES } from "./body.js?v=20261010-6";
 
 const IDS = ["A", "B"];
 const DEFAULT_NAMES = { A: "キャラクターA", B: "キャラクターB" };
@@ -291,9 +291,11 @@ controls.addEventListener("change", () => {
   clampPan();
   requestRender();
 });
-// どちらを手前に描くか: 足元（爪先）の位置で決める。
-// - カメラから見て、爪先が少しでも手前にある方を、前に描く。
-// - 爪先がまったく同じ位置なら、身長が低い方を前にする。身長も同じなら、体重が軽い方を前にする。
+// どちらを手前に描くか:
+// - 横から見ているとき（二人の正面の向きと、カメラの向きが、ほぼ直角のとき）は、身長が低い方を前にする。
+//   身長も同じなら、体重が軽い方を前にする。（横からでは、爪先の前後の差が、足の幅の違いにしかならないため）
+// - それ以外では、足元（爪先）の位置で決める。カメラから見て、爪先が少しでも手前にある方を、前に描く。
+//   爪先がまったく同じ位置なら、身長が低い方を前にする。身長も同じなら、体重が軽い方を前にする。
 // 体が重なっても色が混ざらず、前の人が全体を見えるよう、前後の2回に分けて描く。
 const SAME_TOE_M = 0.001; // これ以内の差（1mm）なら、同じ位置とみなす
 
@@ -320,17 +322,33 @@ function toeDepth(figure, forward) {
   return nearest;
 }
 
-function frontFigureId() {
-  if (!figures.A || !figures.B) return null;
-  const forward = viewForward();
-  const depthA = toeDepth(figures.A, forward);
-  const depthB = toeDepth(figures.B, forward);
-  if (Math.abs(depthA - depthB) > SAME_TOE_M) return depthA < depthB ? "A" : "B";
+const SIDE_VIEW_SIN = Math.sin((15 * Math.PI) / 180); // 正面の向きとカメラの向きが、直角から 15 度以内なら「横から」
+
+// 横から見ているか（二人とも、正面の向きとカメラの向きが、ほぼ直角か）
+function viewedFromSide(forward) {
+  return IDS.every((id) => {
+    const t = figures[id].group.rotation.y;
+    return Math.abs(Math.sin(t) * forward.x + Math.cos(t) * forward.z) < SIDE_VIEW_SIN;
+  });
+}
+
+// 身長が低い方、同じなら体重が軽い方（どちらも同じなら null）
+function smallerFigureId() {
   if (state.A.height !== state.B.height) return state.A.height < state.B.height ? "A" : "B";
   const weightA = results.A?.weight ?? 0;
   const weightB = results.B?.weight ?? 0;
   if (Math.abs(weightA - weightB) > 0.05) return weightA < weightB ? "A" : "B";
-  return null; // すべて同じなら、普通の奥行きで描く
+  return null;
+}
+
+function frontFigureId() {
+  if (!figures.A || !figures.B) return null;
+  const forward = viewForward();
+  if (viewedFromSide(forward)) return smallerFigureId();
+  const depthA = toeDepth(figures.A, forward);
+  const depthB = toeDepth(figures.B, forward);
+  if (Math.abs(depthA - depthB) > SAME_TOE_M) return depthA < depthB ? "A" : "B";
+  return smallerFigureId(); // 爪先が同じ位置なら、低い方（同じなら軽い方）。すべて同じなら null（普通の奥行き）
 }
 
 function renderFrame() {
