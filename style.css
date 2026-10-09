@@ -55,10 +55,10 @@ a { color: var(--accent); }
 .panel h2 { margin: 0 0 8px; font-size: 1.05rem; display: flex; align-items: center; gap: 8px; }
 .name {
   flex: 1; min-width: 0; font: inherit; font-weight: 700; color: var(--text);
-  background: transparent; border: 1px dashed transparent; border-radius: 6px; padding: 2px 6px; margin-left: -6px;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px;
 }
-.name:hover { border-color: var(--border); }
-.name:focus { border-color: var(--accent); background: var(--bg); outline: none; }
+.name:hover { border-color: var(--accent); }
+.name:focus { border-color: var(--accent); outline: 2px solid var(--accent); outline-offset: 1px; }
 .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--c); }
 #panelA { --c: var(--a); }
 #panelB { --c: var(--b); }
@@ -147,6 +147,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 }
 .stage .seg button[data-move="A"].on { background: var(--a); border-color: var(--a); color: #fff; }
 .stage .seg button[data-move="B"].on { background: var(--b); border-color: var(--b); color: #fff; }
+.topmap { position: absolute; right: 8px; bottom: 8px; pointer-events: none; }
 .overlay { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
 .ov { position: absolute; transform: translateY(-50%); font-size: 12px; font-weight: 700; line-height: 1; white-space: nowrap; }
 .ov.left { left: 6px; color: var(--muted); }

@@ -37,6 +37,13 @@ python -m http.server 8000
 | `vendor/` | Three.js（MIT） |
 | `docs/要件定義書.md` | 要件定義（現在の実装に合わせた内容） |
 
+## 公開サイトを更新するとき
+
+GitHub Pages は、ファイルを最大10分ほどブラウザに覚えさせます。古い画面が残らないよう、`app.js`・`figure.js`・`body.js`・`style.css` を変更したら、次の4か所の版（`?v=` の値）を同じ新しい値に変えてからプッシュしてください。
+
+- `index.html` の `style.css?v=…` と `app.js?v=…`
+- `app.js` の先頭にある `figure.js?v=…` と `body.js?v=…`
+
 ## 3Dデータについて
 
 人体は [MakeHuman](https://github.com/makehumancommunity/makehuman) の素体メッシュと体型データ（CC0）を、`tools/convert_makehuman.py` で変換して使っています。

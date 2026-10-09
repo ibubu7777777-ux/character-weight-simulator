@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "./vendor/OrbitControls.js";
-import { loadFigure } from "./figure.js";
-import { calculate, clamp, PRESETS, RANGES } from "./body.js";
+import { loadFigure } from "./figure.js?v=20261010-3";
+import { calculate, clamp, PRESETS, RANGES } from "./body.js?v=20261010-3";
 
 const IDS = ["A", "B"];
 const DEFAULT_NAMES = { A: "キャラクターA", B: "キャラクターB" };
@@ -399,9 +399,15 @@ const eyeMarkOf = {};
 
 // 目盛りの数字は、画面の左端に重ねて表示する（下の updateOverlay）。ここでは、奥の壁の目盛りの線と床だけを作る。
 let rulerTopCm = 220;
+let themeColors = { surface: "#ffffff", border: "#d5dbe5", muted: "#5d6879" };
 function buildDecor() {
   decor.clear();
   const css = getComputedStyle(document.documentElement);
+  themeColors = {
+    surface: css.getPropertyValue("--surface").trim() || "#ffffff",
+    border: css.getPropertyValue("--border").trim() || "#d5dbe5",
+    muted: css.getPropertyValue("--muted").trim() || "#5d6879",
+  };
   const muted = css.getPropertyValue("--muted").trim() || "#5d6879";
   const border = css.getPropertyValue("--border").trim() || "#d5dbe5";
   // 前後を分けて描くため、背景はシーンではなくレンダラーの塗りつぶし色にする
@@ -581,8 +587,93 @@ function updateEyeStrip() {
   }
 }
 
+// ---------- 真上から見た配置図 ----------
+// 水平に見ている画面では、人体を奥・手前に動かしても、見た目の位置が変わらない（平行投影のため）。
+// そこで、二人の立ち位置を真上から見た小さな図を、3D画面の右下に出す。上が奥、下が手前（正面から見たとき）。
+// 人体の向き（正面は ▼ の向き）と、カメラのある向き（● の位置）も出す。
+const topMap = document.createElement("canvas");
+topMap.className = "topmap";
+view.appendChild(topMap);
+const MAP_COLOR = { A: "#4f8fd6", B: "#e09a4f" };
+
+function drawTopMap() {
+  const size = view.clientWidth < NARROW_VIEW_PX ? 96 : 120;
+  const dpr = Math.min(devicePixelRatio, 2);
+  if (topMap.width !== Math.round(size * dpr)) {
+    topMap.width = topMap.height = Math.round(size * dpr);
+    topMap.style.width = topMap.style.height = `${size}px`;
+  }
+  const ctx = topMap.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, size, size);
+  ctx.fillStyle = themeColors.surface + "d9";
+  ctx.strokeStyle = themeColors.border;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.roundRect(0.5, 0.5, size - 1, size - 1, 10);
+  ctx.fill();
+  ctx.stroke();
+
+  const half = size / 2;
+  // 図に表示する範囲（±）。標準の並びが大きく見えるよう狭めにし、遠くへ動かしたときは広げる
+  const farthest = Math.max(...IDS.map((id) => (figures[id] ? Math.max(Math.abs(figures[id].group.position.x), Math.abs(figures[id].group.position.z)) : 0)));
+  const limit = Math.max(1.3 * stageScale, farthest + 0.35);
+  const scale = (half - 12) / limit; // 1m あたりのピクセル
+  ctx.strokeStyle = themeColors.border;
+  ctx.beginPath(); // 中心の十字
+  ctx.moveTo(half, 12); ctx.lineTo(half, size - 12);
+  ctx.moveTo(12, half); ctx.lineTo(size - 12, half);
+  ctx.stroke();
+  ctx.fillStyle = themeColors.muted;
+  ctx.font = "9px sans-serif";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "top";
+  ctx.fillText("真上から", 6, 5);
+
+  for (const id of IDS) {
+    const figure = figures[id];
+    if (!figure) continue;
+    const p = figure.group.position;
+    const h = state[id].height / 100;
+    const rx = Math.max(2.5, 0.2 * (h / 1.7) * scale); // 肩幅の半分
+    const rz = Math.max(1.8, 0.11 * (h / 1.7) * scale); // 厚みの半分
+    ctx.save();
+    ctx.translate(half + p.x * scale, half + p.z * scale);
+    ctx.rotate(-figure.group.rotation.y);
+    ctx.fillStyle = MAP_COLOR[id];
+    ctx.strokeStyle = selected === id ? themeColors.muted : "transparent";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, rx, rz, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.beginPath(); // 正面の向き
+    ctx.moveTo(-3, rz + 1); ctx.lineTo(3, rz + 1); ctx.lineTo(0, rz + 5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 8px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.save();
+    ctx.translate(half + p.x * scale, half + p.z * scale);
+    ctx.fillText(id, 0, 0);
+    ctx.restore();
+  }
+
+  // カメラのある向き（正面から見ているときは、下）
+  const az = Math.atan2(camera.position.x - controls.target.x, camera.position.z - controls.target.z);
+  const r = half - 5;
+  ctx.fillStyle = themeColors.muted;
+  ctx.beginPath();
+  ctx.arc(half + Math.sin(az) * r, half + Math.cos(az) * r, 3, 0, Math.PI * 2);
+  ctx.fill();
+}
+
 function updateOverlay() {
   updateEyeStrip();
+  drawTopMap();
   overlayItems = computeOverlayItems();
   while (overlay.children.length < overlayItems.length) overlay.appendChild(document.createElement("div"));
   [...overlay.children].forEach((el, i) => {
